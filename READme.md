@@ -38,28 +38,13 @@
 <div align="center">
 <strong> SESSION PAIR </strong>
     <br>
-  <a href="https://pair.xwolf.space" target="_blank">
+  <a href="https://7-w.vercel.app/wolf.html" target="_blank">
     <img src="https://img.shields.io/badge/pair %20code 1-100000?style=for-the-badge&logo=scan&logoColor=white&labelColor=darkblue&color=darkgreen" alt="PAIR"/>
   </a>
 </div>
 <br>
 
-<div align="center">
-<strong> SESSION PAIR </strong>
-    <br>
-  <a href="https://pairwolf-usln.onrender.com" target="_blank">
-    <img src="https://img.shields.io/badge/pair %20code 2-100000?style=for-the-badge&logo=scan&logoColor=white&labelColor=darkblue&color=darkgreen" alt="PAIR"/>
-  </a>
-</div>
-</br>
-<div align="center">
-<strong> SESSION PAIR </strong>
-    <br>
-  <a href="https://pairwolf.onrender.com" target="_blank">
-    <img src="https://img.shields.io/badge/pair %20code 2-100000?style=for-the-badge&logo=scan&logoColor=white&labelColor=darkblue&color=darkgreen" alt="PAIR"/>
-  </a>
-</div>
-</br>
+
 <p align="center">  
 <strong> DOWNLOAD ZIP </strong>
 
