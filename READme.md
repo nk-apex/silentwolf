@@ -39,7 +39,7 @@
 <strong> SESSION PAIR </strong>
     <br>
   <a href="https://7-w.vercel.app/wolf.html" target="_blank">
-    <img src="https://img.shields.io/badge/pair %20code 1-100000?style=for-the-badge&logo=scan&logoColor=white&labelColor=darkblue&color=darkgreen" alt="PAIR"/>
+    <img src="https://img.shields.io/badge/pair %20code -100000?style=for-the-badge&logo=scan&logoColor=white&labelColor=darkblue&color=darkgreen" alt="PAIR"/>
   </a>
 </div>
 <br>
