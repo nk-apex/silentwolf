@@ -2,8 +2,8 @@ const NEON_GREEN = "\x1b[38;2;57;255;20m";
 const RESET = "\x1b[0m";
 
 console.log(`${NEON_GREEN}
-🐺 SilentWolf v1.0.0 - WhatsApp Bot Library
-Built by SilentWolf | Ready to hunt 🌙
+🐺 Silent Wolf v1.0.0 - WhatsApp Bot Library
+Built by Silent Wolf | Ready to hunt 🌙
 ${RESET}`);
 
 const { connectToWhatsApp } = require('./src/socket/connection');
