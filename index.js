@@ -3,7 +3,7 @@ const RESET = "\x1b[0m";
 
 console.log(`${NEON_GREEN}
 🐺 SilentWolf v1.0.0 - WhatsApp Bot Library
-Built by dariusotieno1 | Ready to hunt 🌙
+Built by SilentWolf | Ready to hunt 🌙
 ${RESET}`);
 
 const { connectToWhatsApp } = require('./src/socket/connection');
