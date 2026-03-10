@@ -1,4 +1,4 @@
-const { default: makeWASocket, DisconnectReason, Browsers } = require('@whiskeysockets/baileys');
+const { default: makeWASocket, DisconnectReason } = require('@whiskeysockets/baileys');
 const qrcode = require('qrcode-terminal');
 const pino = require('pino');
 const { loadAuthState } = require('../auth/authState');
@@ -18,7 +18,6 @@ async function connectToWhatsApp(options = {}) {
     const sock = makeWASocket({
         auth: state,
         printQRInTerminal: false,
-        browser: Browsers.ubuntu('Chrome'),
         logger: pino({ level: 'silent' })
     });
 
