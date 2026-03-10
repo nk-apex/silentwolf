@@ -1,17 +1,31 @@
 {
   "name": "silentwolf",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "A powerful WhatsApp bot library built on Baileys. Fast, clean, and built for hunters.",
   "main": "index.js",
   "license": "MIT",
   "author": "Silent Wolf",
-  "keywords": ["whatsapp", "bot", "baileys", "whatsapp-bot", "silentwolf", "wa-bot", "whatsapp-api"],
+  "keywords": [
+    "whatsapp",
+    "bot",
+    "baileys",
+    "whatsapp-bot",
+    "silentwolf",
+    "wa-bot",
+    "whatsapp-api"
+  ],
   "repository": {
     "type": "git",
     "url": "https://github.com/nk-apex/silentwolf.git"
   },
-  "files": ["src/", "index.js", "README.md"],
-  "engines": { "node": ">=18.0.0" },
+  "files": [
+    "src/",
+    "index.js",
+    "README.md"
+  ],
+  "engines": {
+    "node": ">=18.0.0"
+  },
   "scripts": {
     "start": "node index.js",
     "test": "echo No tests yet"
