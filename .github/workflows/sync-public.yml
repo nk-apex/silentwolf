@@ -1,0 +1,66 @@
+name: Sync Obfuscated to Public Repo
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout source code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install javascript-obfuscator
+        run: npm install -g javascript-obfuscator
+
+      - name: Create output folders
+        run: |
+          mkdir -p obfuscated/src/auth
+          mkdir -p obfuscated/src/commands
+          mkdir -p obfuscated/src/messages
+          mkdir -p obfuscated/src/socket
+          mkdir -p obfuscated/src/store
+          mkdir -p obfuscated/src/utils
+
+      - name: Obfuscate source files
+        run: |
+          javascript-obfuscator index.js --output obfuscated/index.js
+          javascript-obfuscator src/auth/authState.js --output obfuscated/src/auth/authState.js
+          javascript-obfuscator src/auth/sessionManager.js --output obfuscated/src/auth/sessionManager.js
+          javascript-obfuscator src/commands/router.js --output obfuscated/src/commands/router.js
+          javascript-obfuscator src/messages/sender.js --output obfuscated/src/messages/sender.js
+          javascript-obfuscator src/socket/connection.js --output obfuscated/src/socket/connection.js
+          javascript-obfuscator src/store/messageStore.js --output obfuscated/src/store/messageStore.js
+          javascript-obfuscator src/utils/keepAlive.js --output obfuscated/src/utils/keepAlive.js
+          javascript-obfuscator src/utils/logger.js --output obfuscated/src/utils/logger.js
+
+      - name: Copy static files
+        run: |
+          cp package.json obfuscated/package.json
+          cp README.md obfuscated/README.md
+          cp .npmignore obfuscated/.npmignore
+
+      - name: Clone public repo
+        run: |
+          git clone https://x-access-token:${{ secrets.PUBLIC_REPO_TOKEN }}@github.com/7silent-wolf/silentwolf-baileys.git public-repo
+
+      - name: Copy obfuscated files into public repo
+        run: |
+          cp -r obfuscated/. public-repo/
+
+      - name: Commit and push to public repo
+        run: |
+          cd public-repo
+          git config user.name "Silent Wolf"
+          git config user.email "silentwolf@users.noreply.github.com"
+          git add -A
+          git diff --cached --quiet || git commit -m "🐺 SilentWolf auto-sync from source"
+          git push https://x-access-token:${{ secrets.PUBLIC_REPO_TOKEN }}@github.com/7silent-wolf/silentwolf-baileys.git main
