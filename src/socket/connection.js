@@ -22,23 +22,22 @@ async function connectToWhatsApp(options = {}) {
         logger: pino({ level: 'silent' })
     });
 
-    // Request pairing code once, right after socket creation, if not yet registered
-    if (usePairingCode && phoneNumber && !state.creds.registered) {
-        await wait(2000); // Small delay to let the socket initialise
-        try {
-            const code = await sock.requestPairingCode(phoneNumber);
-            logger.info(`🔑 Your pairing code: ${code}`);
-        } catch (err) {
-            logger.error('Failed to get pairing code:', err.message);
-        }
-    }
-
     sock.ev.on('connection.update', async (update) => {
         const { connection, lastDisconnect, qr } = update;
 
-        if (!usePairingCode && qr) {
-            logger.info('📱 Scan this QR code with WhatsApp:');
-            qrcode.generate(qr, { small: true });
+        if (qr) {
+            if (usePairingCode && phoneNumber) {
+                // QR firing = WA servers are ready, now request the pairing code
+                try {
+                    const code = await sock.requestPairingCode(phoneNumber);
+                    logger.info(`🔑 Your pairing code: ${code}`);
+                } catch (err) {
+                    logger.error('Failed to get pairing code:', err.message);
+                }
+            } else {
+                logger.info('📱 Scan this QR code with WhatsApp:');
+                qrcode.generate(qr, { small: true });
+            }
         }
 
         if (connection === 'connecting') {

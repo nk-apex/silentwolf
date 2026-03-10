@@ -21,7 +21,7 @@ async function main() {
     const { sock, sender, router, store } = await createBot({
         prefix: '!',
         usePairingCode: true,
-        phoneNumber: '2547XXXXXXXX'  // replace with your number, country code, no +
+        phoneNumber: '254733961184'  // replace with your number, country code, no +
     });
 
     router.register('ping', { description: 'Test if the bot is alive' }, async ({ message }) => {
