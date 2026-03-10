@@ -1,7 +1,7 @@
 {
-  "name": "node-project",
+  "name": "silentwolf",
   "version": "1.0.0",
-  "description": "A blank Node.js project",
+  "description": "A powerful WhatsApp bot library",
   "main": "index.js",
   "scripts": {
     "start": "node index.js",
@@ -9,5 +9,5 @@
   },
   "keywords": [],
   "author": "",
-  "license": "ISC"
+  "license": "MIT"
 }
