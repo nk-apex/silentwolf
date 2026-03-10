@@ -12,7 +12,10 @@ const { CommandRouter } = require('./src/commands/router');
 const { MessageStore } = require('./src/store/messageStore');
 const { loadAuthState } = require('./src/auth/authState');
 const { exportSession, importSession, isSessionValid } = require('./src/auth/sessionManager');
+const { startKeepAlive } = require('./src/utils/keepAlive');
 const logger = require('./src/utils/logger');
+
+startKeepAlive();
 
 async function createBot(options = {}) {
     const sock = await connectToWhatsApp(options);
@@ -35,5 +38,6 @@ module.exports = {
     exportSession,
     importSession,
     isSessionValid,
+    startKeepAlive,
     logger
 };
