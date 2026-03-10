@@ -4,19 +4,26 @@ const pino = require('pino');
 const { loadAuthState } = require('../auth/authState');
 const logger = require('../utils/logger');
 
-async function connectToWhatsApp() {
+async function connectToWhatsApp(options = {}) {
+    const { usePairingCode = false, phoneNumber = '' } = options;
+
     const { state, saveCreds } = await loadAuthState();
 
     const sock = makeWASocket({
         auth: state,
-        printQRInTerminal: false, // We will handle it manually with qrcode-terminal
-        logger: pino({ level: 'silent' }) // Suppress default baileys logger
+        printQRInTerminal: false,
+        logger: pino({ level: 'silent' })
     });
+
+    if (usePairingCode && phoneNumber) {
+        const code = await sock.requestPairingCode(phoneNumber);
+        logger.info(`Your pairing code: ${code}`);
+    }
 
     sock.ev.on('connection.update', (update) => {
         const { connection, lastDisconnect, qr } = update;
 
-        if (qr) {
+        if (!usePairingCode && qr) {
             qrcode.generate(qr, { small: true });
         }
 
@@ -25,11 +32,14 @@ async function connectToWhatsApp() {
         } else if (connection === 'open') {
             logger.info('SilentWolf Connected!');
         } else if (connection === 'close') {
-            const shouldReconnect = (lastDisconnect?.error)?.output?.statusCode !== DisconnectReason.loggedOut;
-            logger.warn('Disconnected - reconnecting...', shouldReconnect ? 'Yes' : 'No');
-            
-            if (shouldReconnect) {
-                connectToWhatsApp();
+            const statusCode = lastDisconnect?.error?.output?.statusCode;
+            const loggedOut = statusCode === DisconnectReason.loggedOut;
+
+            if (loggedOut) {
+                logger.error('Logged out. Please restart and re-authenticate.');
+            } else {
+                logger.warn('Disconnected - reconnecting...');
+                connectToWhatsApp(options);
             }
         }
     });
