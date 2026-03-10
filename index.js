@@ -1,6 +1,5 @@
 const logger = require('./src/utils/logger');
+const { connectToWhatsApp } = require('./src/socket/connection');
 
-logger.info("This is an info message.");
-logger.debug("This is a debug message.");
-logger.warn("This is a warning message.");
-logger.error("This is an error message.");
+logger.info("Starting SilentWolf...");
+connectToWhatsApp();
