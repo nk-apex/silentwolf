@@ -18,7 +18,11 @@ const logger = require('./src/utils/logger');
 startKeepAlive();
 
 async function main() {
-    const { sock, sender, router, store } = await createBot({ prefix: '!' });
+    const { sock, sender, router, store } = await createBot({
+        prefix: '!',
+        usePairingCode: true,
+        phoneNumber: '2547XXXXXXXX'  // replace with your number, country code, no +
+    });
 
     router.register('ping', { description: 'Test if the bot is alive' }, async ({ message }) => {
         const jid = message.key.remoteJid;
@@ -39,7 +43,7 @@ async function main() {
         }
     });
 
-    logger.info('✅ Bot is ready! Scan the QR code above and send !ping to test.');
+    logger.info('✅ Bot is ready! Enter the pairing code in WhatsApp and send !ping to test.');
 }
 
 async function createBot(options = {}) {
