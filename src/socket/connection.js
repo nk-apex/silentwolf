@@ -2,9 +2,10 @@ const {
     default: makeWASocket,
     useMultiFileAuthState,
     DisconnectReason,
+    makeCacheableSignalKeyStore
 } = require('@whiskeysockets/baileys');
-const qrcode = require('qrcode-terminal');
 const pino = require('pino');
+const qrcode = require('qrcode-terminal');
 const { loadAuthState } = require('../auth/authState');
 const logger = require('../utils/logger');
 
@@ -18,13 +19,14 @@ async function connectToWhatsApp(options = {}) {
     const { state, saveCreds } = await loadAuthState();
 
     const sock = makeWASocket({
-        auth: state,
-        browser: ['SilentWolf', 'Chrome', '1.0.0'],
+        auth: {
+            creds: state.creds,
+            keys: makeCacheableSignalKeyStore(state.keys, pino({ level: 'silent' }))
+        },
+        browser: ['Ubuntu', 'Chrome', '20.0.04'],
+        logger: pino({ level: 'silent' }),
         syncFullHistory: false,
-        markOnlineOnConnect: false,
-        connectTimeoutMs: 60000,
-        keepAliveIntervalMs: 10000,
-        logger: pino({ level: 'silent' })
+        markOnlineOnConnect: false
     });
 
     sock.ev.on('connection.update', async (update) => {
@@ -50,16 +52,13 @@ async function connectToWhatsApp(options = {}) {
             logger.info('SilentWolf Connected! 🎉');
         } else if (connection === 'close') {
             const statusCode = lastDisconnect?.error?.output?.statusCode;
-            const loggedOut = statusCode === DisconnectReason.loggedOut;
-
             logger.warn(`Disconnected — code: ${statusCode}`);
 
-            if (loggedOut) {
+            if (statusCode === DisconnectReason.loggedOut) {
                 logger.error('Logged out. Please restart and re-authenticate.');
             } else {
-                const delay = statusCode === 405 ? 10000 : 3000;
-                logger.info(`Reconnecting in ${delay / 1000}s...`);
-                await wait(delay);
+                logger.info('Reconnecting in 5s...');
+                await wait(5000);
                 connectToWhatsApp(options);
             }
         }
