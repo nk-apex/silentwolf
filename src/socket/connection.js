@@ -2,7 +2,6 @@ const {
     default: makeWASocket,
     useMultiFileAuthState,
     DisconnectReason,
-    Browsers
 } = require('@whiskeysockets/baileys');
 const qrcode = require('qrcode-terminal');
 const pino = require('pino');
@@ -20,9 +19,11 @@ async function connectToWhatsApp(options = {}) {
 
     const sock = makeWASocket({
         auth: state,
-        browser: Browsers.ubuntu('Chrome'),
-        printQRInTerminal: true,
+        browser: ['SilentWolf', 'Chrome', '1.0.0'],
         syncFullHistory: false,
+        markOnlineOnConnect: false,
+        connectTimeoutMs: 60000,
+        keepAliveIntervalMs: 10000,
         logger: pino({ level: 'silent' })
     });
 
@@ -38,8 +39,8 @@ async function connectToWhatsApp(options = {}) {
                     logger.error('Failed to get pairing code:', err.message);
                 }
             } else {
-                logger.info('📱 Scan this QR code with WhatsApp:');
                 qrcode.generate(qr, { small: true });
+                logger.info('Scan the QR code above with WhatsApp!');
             }
         }
 
