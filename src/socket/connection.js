@@ -1,15 +1,13 @@
 const {
     default: makeWASocket,
+    useMultiFileAuthState,
     DisconnectReason,
-    Browsers,
-    useMultiFileAuthState
+    Browsers
 } = require('@whiskeysockets/baileys');
 const qrcode = require('qrcode-terminal');
 const pino = require('pino');
 const { loadAuthState } = require('../auth/authState');
 const logger = require('../utils/logger');
-
-const RECONNECT_DELAY_MS = 3000;
 
 function wait(ms) {
     return new Promise(resolve => setTimeout(resolve, ms));
@@ -22,8 +20,9 @@ async function connectToWhatsApp(options = {}) {
 
     const sock = makeWASocket({
         auth: state,
-        printQRInTerminal: false,
         browser: Browsers.ubuntu('Chrome'),
+        printQRInTerminal: true,
+        syncFullHistory: false,
         logger: pino({ level: 'silent' })
     });
 
@@ -51,15 +50,15 @@ async function connectToWhatsApp(options = {}) {
         } else if (connection === 'close') {
             const statusCode = lastDisconnect?.error?.output?.statusCode;
             const loggedOut = statusCode === DisconnectReason.loggedOut;
-            const restartRequired = statusCode === DisconnectReason.restartRequired;
 
             logger.warn(`Disconnected — code: ${statusCode}`);
 
             if (loggedOut) {
                 logger.error('Logged out. Please restart and re-authenticate.');
-            } else if (restartRequired || statusCode !== DisconnectReason.loggedOut) {
-                logger.info(`Reconnecting in ${RECONNECT_DELAY_MS / 1000}s...`);
-                await wait(RECONNECT_DELAY_MS);
+            } else {
+                const delay = statusCode === 405 ? 10000 : 3000;
+                logger.info(`Reconnecting in ${delay / 1000}s...`);
+                await wait(delay);
                 connectToWhatsApp(options);
             }
         }
