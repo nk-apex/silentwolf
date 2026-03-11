@@ -4,3 +4,6 @@ dist
 server/public
 vite.config.ts.*
 *.tar.gz
+auth_info/
+tests/auth_qr/
+tests/auth_pairing/
