@@ -10,6 +10,10 @@ localPort = 3000
 externalPort = 3000
 
 [[ports]]
+localPort = 4999
+externalPort = 3001
+
+[[ports]]
 localPort = 5000
 externalPort = 80
 
@@ -42,4 +46,4 @@ outputType = "console"
 
 [[workflows.workflow.tasks]]
 task = "shell.exec"
-args = "node index.js"
+args = "node tests/test-units.js"
