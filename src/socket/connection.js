@@ -1,4 +1,3 @@
-const { default: makeWASocket, DisconnectReason, useMultiFileAuthState } = require('@whiskeysockets/baileys');
 const pino = require('pino');
 const qrcode = require('qrcode-terminal');
 const logger = require('../utils/logger');
@@ -8,9 +7,12 @@ function wait(ms) {
 }
 
 async function connectToWhatsApp(options = {}) {
-    const { usePairingCode = false, phoneNumber = '' } = options;
+    const { usePairingCode = false, phoneNumber = '', authFolder = 'auth_info' } = options;
 
-    const { state, saveCreds } = await useMultiFileAuthState('auth_info');
+    // Dynamic import bridges CommonJS → ESM (Baileys lib)
+    const { default: makeWASocket, DisconnectReason, useMultiFileAuthState } = await import('../../lib/index.js');
+
+    const { state, saveCreds } = await useMultiFileAuthState(authFolder);
 
     const sock = makeWASocket({
         auth: state,
@@ -45,7 +47,7 @@ async function connectToWhatsApp(options = {}) {
             logger.warn(`Disconnected — code: ${statusCode}`);
 
             if (statusCode === DisconnectReason.loggedOut) {
-                logger.error('Logged out. Please restart and re-authenticate.');
+                logger.error('Logged out. Delete auth folder and restart.');
             } else {
                 logger.info('Reconnecting in 5s...');
                 await wait(5000);

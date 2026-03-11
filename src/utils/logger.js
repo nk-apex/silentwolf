@@ -11,7 +11,6 @@ const prefix = `${colors.neonGreen}🐺 SilentWolf${colors.reset}`;
 
 function getTimestamp() {
     const now = new Date();
-    // Use a simple local time or ISO string.
     return `${colors.dimWhite}[${now.toLocaleTimeString()}]${colors.reset}`;
 }
 

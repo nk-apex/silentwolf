@@ -1,5 +1,9 @@
 auth_info/
 node_modules/
+tests/auth_qr/
+tests/auth_pairing/
 .replit
 .local/
 *.log
+attached_assets/
+.github/

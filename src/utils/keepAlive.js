@@ -1,7 +1,7 @@
 const express = require('express');
 const logger = require('./logger');
 
-function startKeepAlive() {
+function startKeepAlive(port = 3000) {
     const app = express();
 
     app.get('/', (req, res) => {
@@ -17,8 +17,8 @@ function startKeepAlive() {
         });
     });
 
-    app.listen(3000, () => {
-        logger.info('🌐 Keep-alive server running on port 3000');
+    app.listen(port, () => {
+        logger.info(`🌐 Keep-alive server running on port ${port}`);
     });
 }
 

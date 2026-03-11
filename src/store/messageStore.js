@@ -25,7 +25,7 @@ class MessageStore {
         if (chat.size > MAX_MESSAGES) {
             const oldestKey = chat.keys().next().value;
             chat.delete(oldestKey);
-            logger.warn(`♻️ Evicted oldest message ${oldestKey} from ${jid} (limit: ${MAX_MESSAGES})`);
+            logger.warn(`♻️ Evicted oldest message from ${jid} (limit: ${MAX_MESSAGES})`);
         }
     }
 
@@ -66,7 +66,7 @@ class MessageStore {
             fs.writeFileSync(filePath, JSON.stringify(serializable, null, 2), 'utf-8');
             logger.info(`💿 Message store persisted to ${filePath}`);
         } catch (err) {
-            logger.error('Failed to persist message store to disk:', err.message);
+            logger.error('Failed to persist message store:', err.message);
         }
     }
 
@@ -88,7 +88,7 @@ class MessageStore {
 
             logger.info(`📂 Message store loaded from ${filePath}`);
         } catch (err) {
-            logger.error('Failed to load message store from disk:', err.message);
+            logger.error('Failed to load message store:', err.message);
         }
     }
 }

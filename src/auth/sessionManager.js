@@ -30,7 +30,7 @@ async function importSession(sessionId, authFolder) {
     let raw;
     try {
         raw = Buffer.from(encoded, 'base64').toString('utf-8');
-        JSON.parse(raw); // Validate it's proper JSON
+        JSON.parse(raw);
     } catch {
         throw new Error('Invalid SilentWolf session ID');
     }
@@ -41,7 +41,6 @@ async function importSession(sessionId, authFolder) {
 
     const credsPath = path.join(authFolder, CREDS_FILE);
     fs.writeFileSync(credsPath, raw, 'utf-8');
-
     logger.info('📥 Session imported successfully');
 }
 
@@ -58,14 +57,14 @@ async function isSessionValid(authFolder) {
         const parsed = JSON.parse(raw);
 
         if (!parsed || typeof parsed !== 'object') {
-            logger.warn('❌ No session found');
+            logger.warn('❌ Invalid session data');
             return false;
         }
 
         logger.info('✅ Valid session found');
         return true;
     } catch {
-        logger.warn('❌ No session found');
+        logger.warn('❌ Corrupted session data');
         return false;
     }
 }
