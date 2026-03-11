@@ -1,6 +1,6 @@
-const logger = require('../utils/logger');
+import logger from '../utils/logger.js';
 
-class CommandRouter {
+export class CommandRouter {
     constructor(prefix = '!') {
         this.prefix = prefix;
         this.commands = new Map();
@@ -14,12 +14,8 @@ class CommandRouter {
             adminOnly: options.adminOnly || false,
             groupOnly: options.groupOnly || false
         };
-
         this.commands.set(commandName.toLowerCase(), entry);
-
-        for (const alias of entry.aliases) {
-            this.commands.set(alias.toLowerCase(), entry);
-        }
+        for (const alias of entry.aliases) this.commands.set(alias.toLowerCase(), entry);
     }
 
     async handle(sock, message) {
@@ -29,48 +25,34 @@ class CommandRouter {
 
         if (!body.startsWith(this.prefix)) return;
 
-        const [rawCommand, ...args] = body.slice(this.prefix.length).trim().split(/\s+/);
-        const commandName = rawCommand.toLowerCase();
-        const entry = this.commands.get(commandName);
-
+        const [rawCmd, ...args] = body.slice(this.prefix.length).trim().split(/\s+/);
+        const entry = this.commands.get(rawCmd.toLowerCase());
         if (!entry) return;
 
         const jid = message.key.remoteJid;
         const isGroup = jid.endsWith('@g.us');
-        const sender = isGroup
-            ? message.key.participant || message.participant
-            : message.key.remoteJid;
+        const sender = isGroup ? (message.key.participant || message.participant) : jid;
 
         let isAdmin = false;
         if (isGroup) {
             try {
-                const groupMeta = await sock.groupMetadata(jid);
-                isAdmin = groupMeta.participants.some(
-                    p => p.jid === sender && (p.admin === 'admin' || p.admin === 'superadmin')
-                );
-            } catch {
-                isAdmin = false;
-            }
+                const meta = await sock.groupMetadata(jid);
+                isAdmin = meta.participants.some(p => p.jid === sender && ['admin', 'superadmin'].includes(p.admin));
+            } catch { isAdmin = false; }
         }
 
         if (entry.groupOnly && !isGroup) {
-            await sock.sendMessage(jid, { text: '⛔ This command can only be used in groups.' }, { quoted: message });
-            return;
+            return sock.sendMessage(jid, { text: '⛔ This command can only be used in groups.' }, { quoted: message });
         }
-
         if (entry.adminOnly && !isAdmin) {
-            await sock.sendMessage(jid, { text: '⛔ This command is admin only.' }, { quoted: message });
-            return;
+            return sock.sendMessage(jid, { text: '⛔ This command is admin only.' }, { quoted: message });
         }
 
-        logger.info(`⚡ Command ${commandName} triggered by ${sender}`);
-
+        logger.info(`⚡ Command ${rawCmd.toLowerCase()} triggered by ${sender}`);
         try {
             await entry.handler({ sock, message, args, sender, isGroup, isAdmin });
         } catch (err) {
-            logger.error(`Error executing command ${commandName}:`, err.message);
+            logger.error(`Error in command ${rawCmd}:`, err.message);
         }
     }
 }
-
-module.exports = { CommandRouter };

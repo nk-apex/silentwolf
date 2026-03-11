@@ -1,11 +1,9 @@
-const logger = require('../utils/logger');
+import { useMultiFileAuthState } from '../../lib/index.js';
+import logger from '../utils/logger.js';
 
-async function loadAuthState(folder = 'auth_info') {
-    const { useMultiFileAuthState } = await import('../../lib/index.js');
+export async function loadAuthState(folder = 'auth_info') {
     logger.info('Loading auth state...');
     const { state, saveCreds } = await useMultiFileAuthState(folder);
     logger.info('Auth state loaded!');
     return { state, saveCreds };
 }
-
-module.exports = { loadAuthState };

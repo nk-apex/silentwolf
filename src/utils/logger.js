@@ -15,18 +15,10 @@ function getTimestamp() {
 }
 
 const logger = {
-    info: (...args) => {
-        console.log(`${getTimestamp()} ${prefix}`, colors.neonGreen, ...args, colors.reset);
-    },
-    debug: (...args) => {
-        console.log(`${getTimestamp()} ${prefix}`, colors.brightCyan, ...args, colors.reset);
-    },
-    warn: (...args) => {
-        console.warn(`${getTimestamp()} ${prefix}`, colors.yellow, ...args, colors.reset);
-    },
-    error: (...args) => {
-        console.error(`${getTimestamp()} ${prefix}`, colors.red, ...args, colors.reset);
-    }
+    info:  (...args) => console.log(`${getTimestamp()} ${prefix}`, colors.neonGreen,  ...args, colors.reset),
+    debug: (...args) => console.log(`${getTimestamp()} ${prefix}`, colors.brightCyan, ...args, colors.reset),
+    warn:  (...args) => console.warn(`${getTimestamp()} ${prefix}`, colors.yellow,    ...args, colors.reset),
+    error: (...args) => console.error(`${getTimestamp()} ${prefix}`, colors.red,      ...args, colors.reset),
 };
 
-module.exports = logger;
+export default logger;

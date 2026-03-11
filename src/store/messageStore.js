@@ -1,96 +1,52 @@
-const fs = require('fs');
-const path = require('path');
-const logger = require('../utils/logger');
+import fs from 'fs';
+import path from 'path';
+import logger from '../utils/logger.js';
 
 const MAX_MESSAGES = 1000;
 
-class MessageStore {
-    constructor() {
-        this.store = new Map();
-    }
+export class MessageStore {
+    constructor() { this.store = new Map(); }
 
     save(jid, message) {
-        if (!this.store.has(jid)) {
-            this.store.set(jid, new Map());
-        }
-
+        if (!this.store.has(jid)) this.store.set(jid, new Map());
         const chat = this.store.get(jid);
-        const messageId = message.key?.id;
-
-        if (!messageId) return;
-
-        chat.set(messageId, message);
-        logger.debug(`💾 Saved message ${messageId} for ${jid}`);
-
+        const id = message.key?.id;
+        if (!id) return;
+        chat.set(id, message);
         if (chat.size > MAX_MESSAGES) {
-            const oldestKey = chat.keys().next().value;
-            chat.delete(oldestKey);
-            logger.warn(`♻️ Evicted oldest message from ${jid} (limit: ${MAX_MESSAGES})`);
+            chat.delete(chat.keys().next().value);
+            logger.warn(`♻️ Evicted oldest message from ${jid}`);
         }
     }
 
-    getById(jid, messageId) {
-        return this.store.get(jid)?.get(messageId) || null;
-    }
+    getById(jid, messageId) { return this.store.get(jid)?.get(messageId) || null; }
 
     getHistory(jid, limit) {
-        const chat = this.store.get(jid);
-        if (!chat) return [];
-
-        const messages = Array.from(chat.values());
-        return limit ? messages.slice(-limit) : messages;
+        const msgs = Array.from(this.store.get(jid)?.values() || []);
+        return limit ? msgs.slice(-limit) : msgs;
     }
 
-    delete(jid, messageId) {
-        const chat = this.store.get(jid);
-        if (!chat) return;
-        chat.delete(messageId);
-    }
-
-    clear(jid) {
-        this.store.delete(jid);
-    }
+    delete(jid, messageId) { this.store.get(jid)?.delete(messageId); }
+    clear(jid) { this.store.delete(jid); }
 
     persistToDisk(folderPath) {
         try {
-            if (!fs.existsSync(folderPath)) {
-                fs.mkdirSync(folderPath, { recursive: true });
-            }
-
-            const serializable = {};
-            for (const [jid, chat] of this.store.entries()) {
-                serializable[jid] = Array.from(chat.entries());
-            }
-
-            const filePath = path.join(folderPath, 'message_store.json');
-            fs.writeFileSync(filePath, JSON.stringify(serializable, null, 2), 'utf-8');
-            logger.info(`💿 Message store persisted to ${filePath}`);
-        } catch (err) {
-            logger.error('Failed to persist message store:', err.message);
-        }
+            fs.mkdirSync(folderPath, { recursive: true });
+            const data = {};
+            for (const [jid, chat] of this.store) data[jid] = [...chat.entries()];
+            const file = path.join(folderPath, 'message_store.json');
+            fs.writeFileSync(file, JSON.stringify(data, null, 2));
+            logger.info(`💿 Store saved to ${file}`);
+        } catch (err) { logger.error('Failed to persist store:', err.message); }
     }
 
     loadFromDisk(folderPath) {
         try {
-            const filePath = path.join(folderPath, 'message_store.json');
-
-            if (!fs.existsSync(filePath)) {
-                logger.warn(`📂 No message store found at ${filePath}, starting fresh.`);
-                return;
-            }
-
-            const raw = fs.readFileSync(filePath, 'utf-8');
-            const parsed = JSON.parse(raw);
-
-            for (const [jid, entries] of Object.entries(parsed)) {
-                this.store.set(jid, new Map(entries));
-            }
-
-            logger.info(`📂 Message store loaded from ${filePath}`);
-        } catch (err) {
-            logger.error('Failed to load message store:', err.message);
-        }
+            const file = path.join(folderPath, 'message_store.json');
+            if (!fs.existsSync(file)) { logger.warn('📂 No store found, starting fresh.'); return; }
+            const data = JSON.parse(fs.readFileSync(file, 'utf-8'));
+            for (const [jid, entries] of Object.entries(data)) this.store.set(jid, new Map(entries));
+            logger.info(`📂 Store loaded from ${file}`);
+        } catch (err) { logger.error('Failed to load store:', err.message); }
     }
 }
-
-module.exports = { MessageStore };

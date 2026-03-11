@@ -1,16 +1,12 @@
-const pino = require('pino');
-const qrcode = require('qrcode-terminal');
-const logger = require('../utils/logger');
+import makeWASocket, { DisconnectReason, useMultiFileAuthState } from '../../lib/index.js';
+import pino from 'pino';
+import qrcode from 'qrcode-terminal';
+import logger from '../utils/logger.js';
 
-function wait(ms) {
-    return new Promise(resolve => setTimeout(resolve, ms));
-}
+const wait = ms => new Promise(r => setTimeout(r, ms));
 
-async function connectToWhatsApp(options = {}) {
+export async function connectToWhatsApp(options = {}) {
     const { usePairingCode = false, phoneNumber = '', authFolder = 'auth_info' } = options;
-
-    // Dynamic import bridges CommonJS → ESM (Baileys lib)
-    const { default: makeWASocket, DisconnectReason, useMultiFileAuthState } = await import('../../lib/index.js');
 
     const { state, saveCreds } = await useMultiFileAuthState(authFolder);
 
@@ -21,9 +17,7 @@ async function connectToWhatsApp(options = {}) {
         markOnlineOnConnect: false
     });
 
-    sock.ev.on('connection.update', async (update) => {
-        const { connection, lastDisconnect, qr } = update;
-
+    sock.ev.on('connection.update', async ({ connection, lastDisconnect, qr }) => {
         if (qr) {
             if (usePairingCode && phoneNumber) {
                 try {
@@ -43,10 +37,9 @@ async function connectToWhatsApp(options = {}) {
         } else if (connection === 'open') {
             logger.info('SilentWolf Connected! 🎉');
         } else if (connection === 'close') {
-            const statusCode = lastDisconnect?.error?.output?.statusCode;
-            logger.warn(`Disconnected — code: ${statusCode}`);
-
-            if (statusCode === DisconnectReason.loggedOut) {
+            const code = lastDisconnect?.error?.output?.statusCode;
+            logger.warn(`Disconnected — code: ${code}`);
+            if (code === DisconnectReason.loggedOut) {
                 logger.error('Logged out. Delete auth folder and restart.');
             } else {
                 logger.info('Reconnecting in 5s...');
@@ -57,8 +50,5 @@ async function connectToWhatsApp(options = {}) {
     });
 
     sock.ev.on('creds.update', saveCreds);
-
     return sock;
 }
-
-module.exports = { connectToWhatsApp };
