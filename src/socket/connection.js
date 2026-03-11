@@ -1,12 +1,6 @@
-const {
-    default: makeWASocket,
-    useMultiFileAuthState,
-    DisconnectReason,
-    makeCacheableSignalKeyStore
-} = require('@whiskeysockets/baileys');
+const { default: makeWASocket, DisconnectReason, useMultiFileAuthState } = require('@whiskeysockets/baileys');
 const pino = require('pino');
 const qrcode = require('qrcode-terminal');
-const { loadAuthState } = require('../auth/authState');
 const logger = require('../utils/logger');
 
 function wait(ms) {
@@ -16,14 +10,10 @@ function wait(ms) {
 async function connectToWhatsApp(options = {}) {
     const { usePairingCode = false, phoneNumber = '' } = options;
 
-    const { state, saveCreds } = await loadAuthState();
+    const { state, saveCreds } = await useMultiFileAuthState('auth_info');
 
     const sock = makeWASocket({
-        auth: {
-            creds: state.creds,
-            keys: makeCacheableSignalKeyStore(state.keys, pino({ level: 'silent' }))
-        },
-        browser: ['Ubuntu', 'Chrome', '20.0.04'],
+        auth: state,
         logger: pino({ level: 'silent' }),
         syncFullHistory: false,
         markOnlineOnConnect: false
@@ -42,7 +32,7 @@ async function connectToWhatsApp(options = {}) {
                 }
             } else {
                 qrcode.generate(qr, { small: true });
-                logger.info('Scan the QR code above with WhatsApp!');
+                logger.info('📱 Scan the QR code above with WhatsApp!');
             }
         }
 

@@ -15,37 +15,6 @@ const { exportSession, importSession, isSessionValid } = require('./src/auth/ses
 const { startKeepAlive } = require('./src/utils/keepAlive');
 const logger = require('./src/utils/logger');
 
-startKeepAlive();
-
-async function main() {
-    const { sock, sender, router, store } = await createBot({
-        prefix: '!',
-        usePairingCode: true,
-        phoneNumber: '254733961184'  // replace with your number, country code, no +
-    });
-
-    router.register('ping', { description: 'Test if the bot is alive' }, async ({ message }) => {
-        const jid = message.key.remoteJid;
-        await sender.sendReply(jid, '🐺 Pong! Silent Wolf is alive and hunting!', message);
-    });
-
-    router.register('hi', { description: 'Greet the bot' }, async ({ message, sender: senderJid }) => {
-        const jid = message.key.remoteJid;
-        await sender.sendReply(jid, `👋 Hey there! I'm Silent Wolf 🐺 — type *!ping* to test me.`, message);
-    });
-
-    sock.ev.on('messages.upsert', async ({ messages, type }) => {
-        if (type !== 'notify') return;
-        for (const msg of messages) {
-            if (msg.key.fromMe) continue;
-            store.save(msg.key.remoteJid, msg);
-            await router.handle(sock, msg);
-        }
-    });
-
-    logger.info('✅ Bot is ready! Enter the pairing code in WhatsApp and send !ping to test.');
-}
-
 async function createBot(options = {}) {
     const sock = await connectToWhatsApp(options);
 
@@ -70,5 +39,3 @@ module.exports = {
     startKeepAlive,
     logger
 };
-
-main();
