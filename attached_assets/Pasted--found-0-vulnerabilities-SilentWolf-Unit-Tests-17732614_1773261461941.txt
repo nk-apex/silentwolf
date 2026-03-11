@@ -1,0 +1,66 @@
+
+found 0 vulnerabilities
+
+╔══════════════════════════════════════╗
+║   🐺  SilentWolf Unit Tests          ║
+╚══════════════════════════════════════╝
+
+▶ Logger
+  ✅ PASS — logger has info, debug, warn, error methods
+[11:37:12 PM] 🐺 SilentWolf  Test info message 
+  ✅ PASS — logger.info does not throw
+[11:37:12 PM] 🐺 SilentWolf  Test warn message
+  ✅ PASS — logger.warn does not throw
+[11:37:12 PM] 🐺 SilentWolf  Test error message
+  ✅ PASS — logger.error does not throw
+
+▶ CommandRouter
+  ✅ PASS — creates router with default prefix !
+  ✅ PASS — creates router with custom prefix
+  ✅ PASS — registers a command
+  ✅ PASS — registers command aliases
+  ✅ PASS — registers command with options
+  ✅ PASS — handle ignores messages without prefix
+[11:37:12 PM] 🐺 SilentWolf  ⚡ Command ping triggered by 123@s.whatsapp.net
+  ✅ PASS — handle calls correct command handler
+  ✅ PASS — handle ignores unknown commands silently
+
+▶ MessageStore
+  ✅ PASS — creates empty store
+  ✅ PASS — saves and retrieves a message by id
+  ✅ PASS — getHistory returns all saved messages
+  ✅ PASS — getHistory respects limit
+  ✅ PASS — returns null for unknown message
+  ✅ PASS — deletes a message
+  ✅ PASS — clears all messages for a jid
+[11:37:12 PM] 🐺 SilentWolf  💿 Store saved to tests\tmp_store\message_store.json
+[11:37:12 PM] 🐺 SilentWolf  📂 Store loaded from tests\tmp_store\message_store.json 
+  ✅ PASS — persists and loads from disk
+[11:37:12 PM] 🐺 SilentWolf  ♻️ Evicted oldest message from jid1 
+  ✅ PASS — evicts oldest message when over MAX_MESSAGES limit
+
+▶ MessageSender
+  ✅ PASS — instantiates with a socket
+  ✅ PASS — sendText calls sock.sendMessage
+  ✅ PASS — sendReaction calls sock.sendMessage with react payload
+[11:37:12 PM] 🐺 SilentWolf  Failed to send text to jid: Network error
+  ✅ PASS — sender handles sendMessage error gracefully
+
+▶ SessionManager
+[11:37:12 PM] 🐺 SilentWolf  ❌ No session found
+  ✅ PASS — isSessionValid returns false when no creds found
+  ✅ PASS — exportSession throws when no creds file exists
+  ✅ PASS — importSession throws for invalid session ID
+[11:37:12 PM] 🐺 SilentWolf  📦 Session exported 
+[11:37:12 PM] 🐺 SilentWolf  📥 Session imported successfully 
+[11:37:12 PM] 🐺 SilentWolf  ✅ Valid session found
+  ✅ PASS — export and import session round-trips correctly
+
+▶ keepAlive
+  ✅ PASS — startKeepAlive starts HTTP server and responds on /
+
+════════════════════════════════════════
+  Results: 30 passed / 0 failed / 30 total
+════════════════════════════════════════
+
+PS C:\Users\user\OneDrive\Desktop\WOLF-BAILEYS> 
