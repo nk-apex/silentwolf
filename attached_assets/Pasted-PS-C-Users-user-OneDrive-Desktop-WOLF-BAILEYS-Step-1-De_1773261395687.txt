@@ -1,0 +1,65 @@
+PS C:\Users\user\OneDrive\Desktop\WOLF-BAILEYS> # Step 1 - Delete the old empty folder
+>> Remove-Item -Recurse -Force "C:\Users\user\OneDrive\Desktop\WOLF-BAILEYS"
+>>
+>> # Step 2 - Clone fresh
+>> git clone https://github.com/nk-apex/silentwolf.git "C:\Users\user\OneDrive\Desktop\WOLF-BAILEYS"
+>>
+>> # Step 3 - Enter folder
+>> cd "C:\Users\user\OneDrive\Desktop\WOLF-BAILEYS"
+>>
+>> # Step 4 - Install packages
+>> npm install
+>>
+>> # Step 5 - Run unit tests (no WhatsApp needed)
+>> node tests/test-units.js
+>>
+>> # Step 6 - Run QR test (needs WhatsApp)
+>> node tests/test-qr.js
+Remove-Item : Cannot remove the item at 'C:\Users\user\OneDrive\Desktop\WOLF-BAILEYS' 
+because it is in use.
+At line:2 char:1
++ Remove-Item -Recurse -Force "C:\Users\user\OneDrive\Desktop\WOLF-BAIL ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (:) [Remove-Item], PSInvalidOperationExcep  
+   tion
+    + FullyQualifiedErrorId : InvalidOperation,Microsoft.PowerShell.Commands.RemoveItemCom  
+   mand
+
+fatal: destination path 'C:\Users\user\OneDrive\Desktop\WOLF-BAILEYS' already exists and is not an empty directory.
+npm error code ENOENT
+npm error syscall open
+npm error path C:\Users\user\OneDrive\Desktop\WOLF-BAILEYS\package.json
+npm error errno -4058
+npm error enoent Could not read package.json: Error: ENOENT: no such file or directory, open 'C:\Users\user\OneDrive\Desktop\WOLF-BAILEYS\package.json'
+npm error enoent This is related to npm not being able to find a file.
+npm error enoent
+npm error A complete log of this run can be found in: C:\Users\user\AppData\Local\npm-cache\_logs\2026-03-11T20_36_21_473Z-debug-0.log
+node:internal/modules/cjs/loader:1210
+  throw err;
+  ^
+
+Error: Cannot find module 'C:\Users\user\OneDrive\Desktop\WOLF-BAILEYS\tests\test-units.js' 
+    at Module._resolveFilename (node:internal/modules/cjs/loader:1207:15)
+    at Module._load (node:internal/modules/cjs/loader:1038:27)
+    at Function.executeUserEntryPoint [as runMain] (node:internal/modules/run_main:164:12)  
+    at node:internal/main/run_main_module:28:49 {
+  code: 'MODULE_NOT_FOUND',
+  requireStack: []
+}
+
+Node.js v20.19.5
+node:internal/modules/cjs/loader:1210
+  throw err;
+  ^
+
+Error: Cannot find module 'C:\Users\user\OneDrive\Desktop\WOLF-BAILEYS\tests\test-qr.js'    
+    at Module._resolveFilename (node:internal/modules/cjs/loader:1207:15)
+    at Module._load (node:internal/modules/cjs/loader:1038:27)
+    at Function.executeUserEntryPoint [as runMain] (node:internal/modules/run_main:164:12)  
+    at node:internal/main/run_main_module:28:49 {
+  code: 'MODULE_NOT_FOUND',
+  requireStack: []
+}
+
+Node.js v20.19.5
+PS C:\Users\user\OneDrive\Desktop\WOLF-BAILEYS> 
