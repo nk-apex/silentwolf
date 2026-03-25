@@ -91,6 +91,24 @@ Generated Zod schemas from the OpenAPI spec (e.g. `HealthCheckResponse`). Used b
 
 Generated React Query hooks and fetch client from the OpenAPI spec (e.g. `useHealthCheck`, `healthCheck`).
 
+### `lib/silentwolf` (`@workspace/silentwolf`)
+
+A fork of `@whiskeysockets/baileys@7.0.0-rc.9` — the WhatsApp Web WebSockets library. This is your own customizable version called **silentwolf**. Source lives in `lib/silentwolf/src/` and mirrors the upstream Baileys structure:
+
+- `src/index.ts` — main entry re-exporting all modules
+- `src/Socket/` — core WhatsApp socket connection logic
+- `src/Utils/` — media, crypto, message utilities
+- `src/Types/` — TypeScript type definitions
+- `src/Defaults/` — default configuration values
+- `src/WABinary/` — WhatsApp binary protocol encoding/decoding
+- `src/Signal/` — Signal protocol (encryption) implementation
+- `src/WAProto/` — Protocol buffer definitions
+- `WAProto/` — compiled protobuf schema files
+
+Import from other workspace packages via `@workspace/silentwolf`.
+
+Upstream source: `https://github.com/WhiskeySockets/Baileys` (tag `v7.0.0-rc.9`).
+
 ### `scripts` (`@workspace/scripts`)
 
 Utility scripts package. Each script is a `.ts` file in `src/` with a corresponding npm script in `package.json`. Run scripts via `pnpm --filter @workspace/scripts run <script>`. Scripts can import any workspace package (e.g., `@workspace/db`) by adding it as a dependency in `scripts/package.json`.
