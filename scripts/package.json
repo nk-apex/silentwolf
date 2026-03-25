@@ -5,10 +5,18 @@
   "type": "module",
   "scripts": {
     "hello": "tsx ./src/hello.ts",
+    "test-silentwolf": "tsx ./src/test-silentwolf.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "devDependencies": {
     "@types/node": "catalog:",
+    "@types/qrcode-terminal": "^0.12.2",
     "tsx": "catalog:"
+  },
+  "dependencies": {
+    "@hapi/boom": "^9.1.4",
+    "@workspace/silentwolf": "workspace:*",
+    "pino": "^10.3.1",
+    "qrcode-terminal": "^0.12.0"
   }
 }
