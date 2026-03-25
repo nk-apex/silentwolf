@@ -4,11 +4,16 @@ import makeWASocket, {
   useMultiFileAuthState,
   fetchLatestBaileysVersion,
   jidDecode,
+  downloadContentFromMessage,
+  proto,
 } from '@workspace/silentwolf'
 import qrcode from 'qrcode-terminal'
 import P from 'pino'
+import { promises as fs } from 'node:fs'
+import { join } from 'node:path'
 
 const AUTH_FOLDER = './silentwolf_auth'
+const VIEWONCE_FOLDER = './silentwolf_viewonce'
 
 const logger = P({ level: 'warn' })
 
@@ -21,56 +26,118 @@ const PHONE_NUMBER = (process.argv[2] ?? process.env.PHONE_NUMBER ?? '').replace
 
 type WASock = ReturnType<typeof makeWASocket>
 
+// ── JID resolution ─────────────────────────────────────────────────────────
+
 /**
- * Resolve a JID (any type) to a human-readable label.
- *
- * WhatsApp v7 uses LID JIDs (e.g. "12345@lid") in group chats instead of
- * phone-number JIDs. These must be resolved via the signal repository's LID
- * mapping table, which is populated as messages are decrypted.
- *
- * Plain JIDs:        "15551234567:3@s.whatsapp.net"  →  "+15551234567"
- * LID JIDs:         "171524485062840@lid"            →  resolved PN or "[LID]"
- * Group JIDs:       "120363...@g.us"                 →  "[Group 120363...]"
- * Broadcast:        "status@broadcast"               →  "[Broadcast]"
+ * Resolve any WhatsApp JID to a human-readable phone number or label.
+ * Handles LID JIDs (v7 format) by looking up the LID→PN mapping table.
  */
 async function resolveJid(sock: WASock, jid: string | null | undefined): Promise<string> {
   if (!jid) return 'unknown'
-
   const decoded = jidDecode(jid)
   if (!decoded) return jid
 
   const { user, server } = decoded
 
-  // ── Group chat ──────────────────────────────────────────────────────────
   if (server === 'g.us') return `[Group ${user}]`
-
-  // ── Newsletter / channel ────────────────────────────────────────────────
   if (server === 'newsletter') return `[Channel ${user}]`
-
-  // ── Broadcast ───────────────────────────────────────────────────────────
   if (server === 'broadcast') return '[Broadcast]'
 
-  // ── LID — resolve to real phone number via signal repository ────────────
+  // LID JID — resolve to real phone number via signal repository mapping
   if (server === 'lid') {
     try {
       const pnJid = await sock.signalRepository.lidMapping.getPNForLID(jid)
       if (pnJid) {
-        // pnJid looks like "15551234567:0@s.whatsapp.net"
         const phone = pnJid.split('@')[0].split(':')[0].replace(/\D/g, '')
         if (phone.length >= 7) return `+${phone}`
       }
     } catch {
-      // mapping not yet available — fall through
+      // mapping not yet populated
     }
-    // Can't resolve yet; show raw LID so the developer knows what's happening
     return `[LID:${user}]`
   }
 
-  // ── Regular s.whatsapp.net JID ──────────────────────────────────────────
-  // Strip device suffix:  "15551234567:3@s.whatsapp.net" → "+15551234567"
+  // Regular s.whatsapp.net — strip device suffix
   const phone = user.split(':')[0].replace(/\D/g, '')
   return phone.length >= 7 ? `+${phone}` : `+${user}`
 }
+
+// ── View-once handling ─────────────────────────────────────────────────────
+
+type MediaInfo = {
+  mediaType: 'image' | 'video' | 'audio'
+  ext: string
+  msg: proto.Message.IImageMessage | proto.Message.IVideoMessage | proto.Message.IAudioMessage
+}
+
+/**
+ * Unwrap a view-once message from its container and return the inner media
+ * along with the media type. Returns null if the message is not view-once
+ * or if the content is already unavailable (already opened on-device).
+ *
+ * WhatsApp v7 has three wrapper types:
+ *   viewOnceMessage           — original format
+ *   viewOnceMessageV2         — updated format
+ *   viewOnceMessageV2Extension — used for audio voice notes
+ */
+function extractViewOnceMedia(msgContent: proto.IMessage): MediaInfo | null {
+  const inner =
+    msgContent.viewOnceMessage?.message ??
+    msgContent.viewOnceMessageV2?.message ??
+    msgContent.viewOnceMessageV2Extension?.message
+
+  if (!inner) return null
+
+  if (inner.imageMessage) {
+    return { mediaType: 'image', ext: 'jpg', msg: inner.imageMessage }
+  }
+  if (inner.videoMessage) {
+    // viewOnce videos can be short clips or GIF-like
+    const ext = inner.videoMessage.gifPlayback ? 'mp4' : 'mp4'
+    return { mediaType: 'video', ext, msg: inner.videoMessage }
+  }
+  if (inner.audioMessage) {
+    const ext = inner.audioMessage.mimetype?.includes('ogg') ? 'ogg' : 'mp3'
+    return { mediaType: 'audio', ext, msg: inner.audioMessage }
+  }
+
+  return null
+}
+
+/**
+ * Download a view-once media message and save it to VIEWONCE_FOLDER.
+ * Returns the saved file path, or null on failure.
+ */
+async function downloadViewOnce(info: MediaInfo, label: string): Promise<string | null> {
+  try {
+    await fs.mkdir(VIEWONCE_FOLDER, { recursive: true })
+
+    const stream = await downloadContentFromMessage(
+      info.msg as Parameters<typeof downloadContentFromMessage>[0],
+      info.mediaType
+    )
+
+    const chunks: Buffer[] = []
+    for await (const chunk of stream) {
+      chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk))
+    }
+    const buffer = Buffer.concat(chunks)
+
+    const timestamp = Date.now()
+    // Sanitise the label for use in a filename
+    const safeSender = label.replace(/[^a-zA-Z0-9+]/g, '_')
+    const filename = `${timestamp}_${safeSender}.${info.ext}`
+    const filePath = join(VIEWONCE_FOLDER, filename)
+
+    await fs.writeFile(filePath, buffer)
+    return filePath
+  } catch (err) {
+    console.error('  ⚠️  Failed to download view-once media:', (err as Error).message)
+    return null
+  }
+}
+
+// ── Main connection ────────────────────────────────────────────────────────
 
 async function startConnection() {
   const { state, saveCreds } = await useMultiFileAuthState(AUTH_FOLDER)
@@ -90,7 +157,7 @@ async function startConnection() {
 
   sock.ev.on('creds.update', saveCreds)
 
-  // ── Pair-code mode ────────────────────────────────────────────────────────
+  // ── Pair-code mode ─────────────────────────────────────────────────────
   if (PHONE_NUMBER && !state.creds.registered) {
     await new Promise((r) => setTimeout(r, 3000))
     try {
@@ -109,7 +176,7 @@ async function startConnection() {
     }
   }
 
-  // ── Connection updates ────────────────────────────────────────────────────
+  // ── Connection state ───────────────────────────────────────────────────
   sock.ev.on('connection.update', async (update) => {
     const { connection, lastDisconnect, qr } = update
 
@@ -142,7 +209,7 @@ async function startConnection() {
     }
   })
 
-  // ── Incoming messages ─────────────────────────────────────────────────────
+  // ── Messages ───────────────────────────────────────────────────────────
   sock.ev.on('messages.upsert', async ({ messages, type }) => {
     if (type !== 'notify') return
 
@@ -151,27 +218,52 @@ async function startConnection() {
 
       const chatJid = msg.key.remoteJid ?? ''
       const isGroup = chatJid.endsWith('@g.us')
-
-      // For group messages, participant holds the sender's JID (may be @lid)
-      // For DMs, remoteJid is the sender
       const senderJid = isGroup ? (msg.key.participant ?? chatJid) : chatJid
 
       const chat = await resolveJid(sock, chatJid)
       const sender = await resolveJid(sock, senderJid)
+      const prefix = isGroup ? `${chat} | ${sender}` : sender
 
+      const msgContent = msg.message
+
+      if (!msgContent) {
+        // msg.key.isViewOnce is set when the view-once has already been opened
+        // on the primary device and WhatsApp sent an "unavailable" placeholder
+        if (msg.key.isViewOnce) {
+          console.log(`\n👁️  ${prefix}: [view-once — already opened on device, media unavailable]`)
+        }
+        continue
+      }
+
+      // ── View-once detection ──────────────────────────────────────────────
+      const viewOnceMedia = extractViewOnceMedia(msgContent)
+
+      if (viewOnceMedia) {
+        const typeLabel = viewOnceMedia.mediaType === 'image' ? '🖼️  photo'
+          : viewOnceMedia.mediaType === 'video' ? '🎥  video'
+          : '🎤  voice'
+
+        console.log(`\n👁️  ${prefix}: [view-once ${typeLabel}] — downloading...`)
+
+        const saved = await downloadViewOnce(viewOnceMedia, sender)
+        if (saved) {
+          console.log(`    ✅ Saved → ${saved}`)
+        }
+        continue
+      }
+
+      // ── Regular messages ─────────────────────────────────────────────────
       const text =
-        msg.message?.conversation ??
-        msg.message?.extendedTextMessage?.text ??
-        msg.message?.imageMessage?.caption ??
-        msg.message?.videoMessage?.caption ??
-        msg.message?.documentMessage?.fileName ??
+        msgContent.conversation ??
+        msgContent.extendedTextMessage?.text ??
+        msgContent.imageMessage?.caption ??
+        msgContent.videoMessage?.caption ??
+        msgContent.documentMessage?.fileName ??
+        msgContent.audioMessage ? '[voice note]' :
+        msgContent.stickerMessage ? '[sticker]' :
         '[non-text message]'
 
-      if (isGroup) {
-        console.log(`\n📨  ${chat} | ${sender}: ${text}`)
-      } else {
-        console.log(`\n📨  ${sender}: ${text}`)
-      }
+      console.log(`\n📨  ${prefix}: ${text}`)
     }
   })
 }
