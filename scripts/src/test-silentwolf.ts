@@ -68,12 +68,37 @@ type MediaInfo = {
   mediaType: 'image' | 'video' | 'audio'
   ext: string
   msg: proto.Message.IImageMessage | proto.Message.IVideoMessage | proto.Message.IAudioMessage
+  // metadata (always present in the proto even before downloading)
+  mimetype: string | null
+  fileSize: number | null     // bytes
+  caption: string | null
+  width: number | null        // image / video only
+  height: number | null       // image / video only
+  seconds: number | null      // video / audio duration
+  gifPlayback: boolean        // video only
+  ptt: boolean                // audio push-to-talk (voice note)
+}
+
+/** Format bytes as a human-readable size string */
+function formatBytes(bytes: number | null): string {
+  if (bytes == null || bytes === 0) return 'unknown size'
+  if (bytes < 1024) return `${bytes} B`
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
+  return `${(bytes / (1024 * 1024)).toFixed(2)} MB`
+}
+
+/** Format seconds as m:ss */
+function formatDuration(secs: number | null): string {
+  if (secs == null) return ''
+  const m = Math.floor(secs / 60)
+  const s = secs % 60
+  return `${m}:${String(s).padStart(2, '0')}`
 }
 
 /**
  * Unwrap a view-once message from its container and return the inner media
- * along with the media type. Returns null if the message is not view-once
- * or if the content is already unavailable (already opened on-device).
+ * along with all available metadata. Returns null if not a view-once or
+ * if content is already unavailable (already opened on-device).
  *
  * WhatsApp v7 has three wrapper types:
  *   viewOnceMessage           — original format
@@ -88,20 +113,87 @@ function extractViewOnceMedia(msgContent: proto.IMessage): MediaInfo | null {
 
   if (!inner) return null
 
+  // fileLength can be number | Long | null — Number() handles both
+  const toBytes = (v: number | { toNumber(): number } | null | undefined): number | null =>
+    v == null ? null : typeof v === 'number' ? v : v.toNumber()
+
   if (inner.imageMessage) {
-    return { mediaType: 'image', ext: 'jpg', msg: inner.imageMessage }
+    const m = inner.imageMessage
+    return {
+      mediaType: 'image',
+      ext: m.mimetype?.includes('webp') ? 'webp' : 'jpg',
+      msg: m,
+      mimetype: m.mimetype ?? null,
+      fileSize: toBytes(m.fileLength as number | { toNumber(): number } | null),
+      caption: m.caption ?? null,
+      width: m.width ?? null,
+      height: m.height ?? null,
+      seconds: null,
+      gifPlayback: false,
+      ptt: false,
+    }
   }
+
   if (inner.videoMessage) {
-    // viewOnce videos can be short clips or GIF-like
-    const ext = inner.videoMessage.gifPlayback ? 'mp4' : 'mp4'
-    return { mediaType: 'video', ext, msg: inner.videoMessage }
+    const m = inner.videoMessage
+    return {
+      mediaType: 'video',
+      ext: 'mp4',
+      msg: m,
+      mimetype: m.mimetype ?? null,
+      fileSize: toBytes(m.fileLength as number | { toNumber(): number } | null),
+      caption: m.caption ?? null,
+      width: m.width ?? null,
+      height: m.height ?? null,
+      seconds: m.seconds ?? null,
+      gifPlayback: !!m.gifPlayback,
+      ptt: false,
+    }
   }
+
   if (inner.audioMessage) {
-    const ext = inner.audioMessage.mimetype?.includes('ogg') ? 'ogg' : 'mp3'
-    return { mediaType: 'audio', ext, msg: inner.audioMessage }
+    const m = inner.audioMessage
+    return {
+      mediaType: 'audio',
+      ext: m.mimetype?.includes('ogg') ? 'ogg' : 'mp3',
+      msg: m,
+      mimetype: m.mimetype ?? null,
+      fileSize: toBytes(m.fileLength as number | { toNumber(): number } | null),
+      caption: null,
+      width: null,
+      height: null,
+      seconds: m.seconds ?? null,
+      gifPlayback: false,
+      ptt: !!m.ptt,
+    }
   }
 
   return null
+}
+
+/** Print all available view-once metadata to the console */
+function logViewOnceMeta(info: MediaInfo) {
+  const lines: string[] = []
+
+  const label =
+    info.mediaType === 'image' ? (info.gifPlayback ? 'GIF' : 'Photo') :
+    info.mediaType === 'video' ? (info.gifPlayback ? 'GIF video' : 'Video') :
+    info.ptt ? 'Voice note' : 'Audio'
+
+  lines.push(`    type     : ${label} (${info.mimetype ?? 'unknown mime'})`)
+  lines.push(`    size     : ${formatBytes(info.fileSize)}`)
+
+  if (info.width != null && info.height != null) {
+    lines.push(`    dimensions: ${info.width} × ${info.height} px`)
+  }
+  if (info.seconds != null) {
+    lines.push(`    duration : ${formatDuration(info.seconds)} (${info.seconds}s)`)
+  }
+  if (info.caption) {
+    lines.push(`    caption  : "${info.caption}"`)
+  }
+
+  console.log(lines.join('\n'))
 }
 
 /**
@@ -248,12 +340,14 @@ async function startConnection() {
         const viewOnceMedia = extractViewOnceMedia(msgContent)
 
         if (viewOnceMedia) {
-          // Inner media is present — download immediately
+          // Inner media is present — log metadata then download
           const typeLabel = viewOnceMedia.mediaType === 'image' ? '🖼️  photo'
-            : viewOnceMedia.mediaType === 'video' ? '🎥  video'
-            : '🎤  voice'
+            : viewOnceMedia.mediaType === 'video' ? (viewOnceMedia.gifPlayback ? '🎞️  gif' : '🎥  video')
+            : (viewOnceMedia.ptt ? '🎤  voice note' : '🎵  audio')
 
-          console.log(`\n👁️  ${prefix}: [view-once ${typeLabel}] — downloading...`)
+          console.log(`\n👁️  ${prefix}: [view-once ${typeLabel}]`)
+          logViewOnceMeta(viewOnceMedia)
+          console.log(`    downloading...`)
 
           const saved = await downloadViewOnce(viewOnceMedia, sender)
           if (saved) {
