@@ -226,33 +226,54 @@ async function startConnection() {
 
       const msgContent = msg.message
 
+      // ── Case A: WhatsApp sent an "unavailable" marker (msg.message is null)
+      // This means the view-once was already opened on the primary phone BEFORE
+      // silentwolf received it. No content will ever arrive for this message.
       if (!msgContent) {
-        // msg.key.isViewOnce is set when the view-once has already been opened
-        // on the primary device and WhatsApp sent an "unavailable" placeholder
         if (msg.key.isViewOnce) {
-          console.log(`\n👁️  ${prefix}: [view-once — already opened on device, media unavailable]`)
+          console.log(`\n👁️  ${prefix}: [view-once — opened on primary device before silentwolf received it]`)
+          console.log(`    To capture view-once media, silentwolf must be running when the message first arrives`)
+          console.log(`    AND the recipient must not open it on their phone first.`)
         }
         continue
       }
 
-      // ── View-once detection ──────────────────────────────────────────────
-      const viewOnceMedia = extractViewOnceMedia(msgContent)
+      // ── Case B: msg.message has a view-once wrapper ──────────────────────
+      const viewOnceWrapper =
+        msgContent.viewOnceMessage ??
+        msgContent.viewOnceMessageV2 ??
+        msgContent.viewOnceMessageV2Extension
 
-      if (viewOnceMedia) {
-        const typeLabel = viewOnceMedia.mediaType === 'image' ? '🖼️  photo'
-          : viewOnceMedia.mediaType === 'video' ? '🎥  video'
-          : '🎤  voice'
+      if (viewOnceWrapper !== undefined && viewOnceWrapper !== null) {
+        const viewOnceMedia = extractViewOnceMedia(msgContent)
 
-        console.log(`\n👁️  ${prefix}: [view-once ${typeLabel}] — downloading...`)
+        if (viewOnceMedia) {
+          // Inner media is present — download immediately
+          const typeLabel = viewOnceMedia.mediaType === 'image' ? '🖼️  photo'
+            : viewOnceMedia.mediaType === 'video' ? '🎥  video'
+            : '🎤  voice'
 
-        const saved = await downloadViewOnce(viewOnceMedia, sender)
-        if (saved) {
-          console.log(`    ✅ Saved → ${saved}`)
+          console.log(`\n👁️  ${prefix}: [view-once ${typeLabel}] — downloading...`)
+
+          const saved = await downloadViewOnce(viewOnceMedia, sender)
+          if (saved) {
+            console.log(`    ✅ Saved → ${saved}`)
+          }
+        } else {
+          // Wrapper exists but inner content is empty or an unrecognised media type
+          console.log(`\n👁️  ${prefix}: [view-once — wrapper detected but inner media is empty/unrecognised]`)
+          const inner = viewOnceWrapper.message
+          if (inner) {
+            const presentKeys = Object.keys(inner).filter(k => (inner as Record<string, unknown>)[k] != null)
+            console.log(`    inner message keys present: ${presentKeys.length ? presentKeys.join(', ') : '(none)'}`)
+          } else {
+            console.log(`    inner message is null — likely revoked between delivery and processing`)
+          }
         }
         continue
       }
 
-      // ── Regular messages ─────────────────────────────────────────────────
+      // ── Case C: Regular messages ─────────────────────────────────────────
       const text =
         msgContent.conversation ??
         msgContent.extendedTextMessage?.text ??
