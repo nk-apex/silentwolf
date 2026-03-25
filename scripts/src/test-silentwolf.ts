@@ -259,9 +259,9 @@ async function startConnection() {
         msgContent.imageMessage?.caption ??
         msgContent.videoMessage?.caption ??
         msgContent.documentMessage?.fileName ??
-        msgContent.audioMessage ? '[voice note]' :
+        (msgContent.audioMessage ? '[voice note]' :
         msgContent.stickerMessage ? '[sticker]' :
-        '[non-text message]'
+        '[non-text message]')
 
       console.log(`\n📨  ${prefix}: ${text}`)
     }
