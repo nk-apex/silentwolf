@@ -16,30 +16,67 @@ const logger = P({ level: 'warn' })
  * Parse a phone number from CLI arg or env var.
  * Usage:  pnpm test-silentwolf 15551234567
  *    or:  PHONE_NUMBER=15551234567 pnpm test-silentwolf
- * Leave empty to use QR code mode instead.
  */
 const PHONE_NUMBER = (process.argv[2] ?? process.env.PHONE_NUMBER ?? '').replace(/\D/g, '')
 
+type WASock = ReturnType<typeof makeWASocket>
+
 /**
- * Convert a WhatsApp JID to a human-readable number/label.
- * e.g. "15551234567:3@s.whatsapp.net" → "+15551234567"
- *      "15551234567@g.us"             → "[Group 15551234567]"
+ * Resolve a JID (any type) to a human-readable label.
+ *
+ * WhatsApp v7 uses LID JIDs (e.g. "12345@lid") in group chats instead of
+ * phone-number JIDs. These must be resolved via the signal repository's LID
+ * mapping table, which is populated as messages are decrypted.
+ *
+ * Plain JIDs:        "15551234567:3@s.whatsapp.net"  →  "+15551234567"
+ * LID JIDs:         "171524485062840@lid"            →  resolved PN or "[LID]"
+ * Group JIDs:       "120363...@g.us"                 →  "[Group 120363...]"
+ * Broadcast:        "status@broadcast"               →  "[Broadcast]"
  */
-function jidToLabel(jid: string | null | undefined): string {
+async function resolveJid(sock: WASock, jid: string | null | undefined): Promise<string> {
   if (!jid) return 'unknown'
+
   const decoded = jidDecode(jid)
   if (!decoded) return jid
-  if (decoded.server === 'g.us') return `[Group ${decoded.user}]`
-  if (decoded.server === 'broadcast') return '[Broadcast]'
-  return `+${decoded.user}`
+
+  const { user, server } = decoded
+
+  // ── Group chat ──────────────────────────────────────────────────────────
+  if (server === 'g.us') return `[Group ${user}]`
+
+  // ── Newsletter / channel ────────────────────────────────────────────────
+  if (server === 'newsletter') return `[Channel ${user}]`
+
+  // ── Broadcast ───────────────────────────────────────────────────────────
+  if (server === 'broadcast') return '[Broadcast]'
+
+  // ── LID — resolve to real phone number via signal repository ────────────
+  if (server === 'lid') {
+    try {
+      const pnJid = await sock.signalRepository.lidMapping.getPNForLID(jid)
+      if (pnJid) {
+        // pnJid looks like "15551234567:0@s.whatsapp.net"
+        const phone = pnJid.split('@')[0].split(':')[0].replace(/\D/g, '')
+        if (phone.length >= 7) return `+${phone}`
+      }
+    } catch {
+      // mapping not yet available — fall through
+    }
+    // Can't resolve yet; show raw LID so the developer knows what's happening
+    return `[LID:${user}]`
+  }
+
+  // ── Regular s.whatsapp.net JID ──────────────────────────────────────────
+  // Strip device suffix:  "15551234567:3@s.whatsapp.net" → "+15551234567"
+  const phone = user.split(':')[0].replace(/\D/g, '')
+  return phone.length >= 7 ? `+${phone}` : `+${user}`
 }
 
 async function startConnection() {
   const { state, saveCreds } = await useMultiFileAuthState(AUTH_FOLDER)
-
   const { version, isLatest } = await fetchLatestBaileysVersion()
 
-  const mode = PHONE_NUMBER ? `pair-code (${PHONE_NUMBER})` : 'QR code'
+  const mode = PHONE_NUMBER ? `pair-code (+${PHONE_NUMBER})` : 'QR code'
   console.log(`\n🐺 silentwolf — WA v${version.join('.')}${isLatest ? ' (latest)' : ' (update available)'}  |  mode: ${mode}`)
   console.log('─────────────────────────────────────────────────────────')
 
@@ -55,11 +92,9 @@ async function startConnection() {
 
   // ── Pair-code mode ────────────────────────────────────────────────────────
   if (PHONE_NUMBER && !state.creds.registered) {
-    // Small delay to let the socket handshake complete before requesting code
     await new Promise((r) => setTimeout(r, 3000))
     try {
       const code = await sock.requestPairingCode(PHONE_NUMBER)
-      // Format as XXXX-XXXX for readability
       const formatted = code.length === 8 ? `${code.slice(0, 4)}-${code.slice(4)}` : code
       console.log('\n🔑  Pair code requested successfully!')
       console.log(`\n    ┌─────────────┐`)
@@ -74,7 +109,7 @@ async function startConnection() {
     }
   }
 
-  // ── QR-code mode ─────────────────────────────────────────────────────────
+  // ── Connection updates ────────────────────────────────────────────────────
   sock.ev.on('connection.update', async (update) => {
     const { connection, lastDisconnect, qr } = update
 
@@ -86,7 +121,7 @@ async function startConnection() {
 
     if (connection === 'open') {
       const user = sock.user
-      const phone = user?.id ? jidToLabel(user.id) : 'unknown'
+      const phone = user?.id ? await resolveJid(sock, user.id) : 'unknown'
       console.log('\n✅  Connected successfully!')
       console.log(`    Phone : ${phone}`)
       console.log(`    Name  : ${user?.name ?? '(no name)'}`)
@@ -108,14 +143,21 @@ async function startConnection() {
   })
 
   // ── Incoming messages ─────────────────────────────────────────────────────
-  sock.ev.on('messages.upsert', ({ messages, type }) => {
+  sock.ev.on('messages.upsert', async ({ messages, type }) => {
     if (type !== 'notify') return
 
     for (const msg of messages) {
       if (msg.key.fromMe) continue
 
-      const from = jidToLabel(msg.key.remoteJid)
-      const participant = msg.key.participant ? ` (from ${jidToLabel(msg.key.participant)})` : ''
+      const chatJid = msg.key.remoteJid ?? ''
+      const isGroup = chatJid.endsWith('@g.us')
+
+      // For group messages, participant holds the sender's JID (may be @lid)
+      // For DMs, remoteJid is the sender
+      const senderJid = isGroup ? (msg.key.participant ?? chatJid) : chatJid
+
+      const chat = await resolveJid(sock, chatJid)
+      const sender = await resolveJid(sock, senderJid)
 
       const text =
         msg.message?.conversation ??
@@ -125,7 +167,11 @@ async function startConnection() {
         msg.message?.documentMessage?.fileName ??
         '[non-text message]'
 
-      console.log(`\n📨  ${from}${participant}: ${text}`)
+      if (isGroup) {
+        console.log(`\n📨  ${chat} | ${sender}: ${text}`)
+      } else {
+        console.log(`\n📨  ${sender}: ${text}`)
+      }
     }
   })
 }
