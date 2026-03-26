@@ -1,3 +1,64 @@
+/**
+ * Utils/messages-media.ts — Media Upload and Download Utilities
+ *
+ * This file handles all media operations: uploading media to WhatsApp's CDN
+ * before sending, and downloading + decrypting media from received messages.
+ *
+ * ── HOW WHATSAPP MEDIA ENCRYPTION WORKS ──────────────────────────────────────
+ *
+ * WhatsApp does NOT store media in plaintext on its CDN.  Before uploading:
+ *
+ *   1. A random 32-byte mediaKey is generated
+ *   2. From mediaKey, HKDF derives:
+ *        • iv        (16 bytes) — AES-CBC initialisation vector
+ *        • cipherKey (32 bytes) — AES-256-CBC encryption key
+ *        • macKey    (32 bytes) — HMAC-SHA-256 authentication key
+ *   3. Media is encrypted with AES-256-CBC
+ *   4. HMAC-SHA-256 is computed over IV + ciphertext and appended
+ *   5. SHA-256 of the encrypted file is computed (fileEncSha256)
+ *   6. SHA-256 of the plaintext file is computed (fileSha256)
+ *   7. The encrypted blob is uploaded to WhatsApp's CDN
+ *
+ * The message proto carries: mediaKey, fileEncSha256, fileSha256, fileLength,
+ * url, mimetype, and dimensions.  The recipient uses these to download and
+ * decrypt the media.
+ *
+ * ── KEY EXPORTED FUNCTIONS ───────────────────────────────────────────────────
+ *
+ *   downloadContentFromMessage(message, type, options)
+ *     — Download and decrypt media from a received message.
+ *     — Returns a readable stream of decrypted bytes.
+ *     — `type` must match the message type: 'image', 'video', 'audio', etc.
+ *     — Example:
+ *         const stream = await downloadContentFromMessage(msg.imageMessage, 'image')
+ *         const buffer = await toBuffer(stream)
+ *
+ *   encryptedStream(mediaStream, mediaType, saveOriginalFileIfRequired)
+ *     — Encrypt a media stream for upload.  Returns { stream, mac, fileEncSha256, ... }
+ *
+ *   uploadMedia(stream, mediaType)
+ *     — Upload encrypted media to WhatsApp CDN.  Returns { url, mediaKey, ... }
+ *
+ *   getAudioDuration(buffer)
+ *     — Get audio duration in seconds (requires ffprobe to be installed).
+ *
+ *   generateProfilePicture(mediaBuffer)
+ *     — Resize/crop an image for use as a profile or group picture.
+ *
+ *   toReadable(buffer)  — Convert a Buffer to a Readable stream
+ *   toBuffer(stream)    — Read an entire stream into a Buffer
+ *
+ * ── SUPPORTED MEDIA TYPES ────────────────────────────────────────────────────
+ *
+ *   'image'     — JPEG, PNG, WebP photos
+ *   'video'     — MP4, 3GPP videos
+ *   'audio'     — MP3, M4A, OGG, OPUS audio
+ *   'document'  — Any file type
+ *   'sticker'   — WebP stickers (static or animated)
+ *   'thumbnail-link' — Link preview thumbnails
+ *   'product-catalog-image' — Business catalog images
+ */
+
 import { Boom } from '@hapi/boom'
 import { exec } from 'child_process'
 import * as Crypto from 'crypto'

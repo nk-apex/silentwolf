@@ -1,421 +1,455 @@
+/**
+ * Socket/business.ts — WhatsApp Business Features (makeBusinessSocket)
+ *
+ * This layer adds WhatsApp Business-specific functionality on top of the
+ * newsletter socket.  Most regular users don't need these features; they're
+ * for accounts registered as WhatsApp Business.
+ *
+ * ── WHAT IS WHATSAPP BUSINESS? ───────────────────────────────────────────────
+ *
+ * WhatsApp Business is a variant of WhatsApp designed for companies.  It adds:
+ *   • A business profile (description, email, website, address, category)
+ *   • A product catalog (items with photos, prices, descriptions)
+ *   • Quick replies and away messages (managed separately in the app)
+ *
+ * ── KEY EXPORTED METHODS ─────────────────────────────────────────────────────
+ *
+ *   getBusinessProfile(jid)                — Fetch a business's profile
+ *   updateBusinessProfile(profile)         — Update YOUR business profile
+ *   getCatalog(options)                    — List products in your catalog
+ *   getCollections(jid, limit)             — Get product collections
+ *   productCreate(product)                 — Add a product to your catalog
+ *   productDelete(productIds)              — Remove products
+ *   productUpdate(productId, update)       — Update a product
+ *   getOrderDetails(orderId, tokenBase64)  — Fetch a customer's order details
+ *
+ * ── BUSINESS PROFILE STRUCTURE ───────────────────────────────────────────────
+ *
+ *   { description, email, website: string[], address, category, catalogStatus }
+ *
+ * ── PRODUCT STRUCTURE ────────────────────────────────────────────────────────
+ *
+ *   { id, name, description, price, currency, imageUrls, isHidden, reviewStatus }
+ */
+
 import type { GetCatalogOptions, ProductCreate, ProductUpdate, SocketConfig, WAMediaUpload } from '../Types'
 import type { UpdateBussinesProfileProps } from '../Types/Bussines'
 import { getRawMediaUploadData } from '../Utils'
 import {
-	parseCatalogNode,
-	parseCollectionsNode,
-	parseOrderDetailsNode,
-	parseProductNode,
-	toProductNode,
-	uploadingNecessaryImagesOfProduct
+        parseCatalogNode,
+        parseCollectionsNode,
+        parseOrderDetailsNode,
+        parseProductNode,
+        toProductNode,
+        uploadingNecessaryImagesOfProduct
 } from '../Utils/business'
 import { type BinaryNode, jidNormalizedUser, S_WHATSAPP_NET } from '../WABinary'
 import { getBinaryNodeChild } from '../WABinary/generic-utils'
 import { makeMessagesRecvSocket } from './messages-recv'
 
 export const makeBusinessSocket = (config: SocketConfig) => {
-	const sock = makeMessagesRecvSocket(config)
-	const { authState, query, waUploadToServer } = sock
+        const sock = makeMessagesRecvSocket(config)
+        const { authState, query, waUploadToServer } = sock
 
-	const updateBussinesProfile = async (args: UpdateBussinesProfileProps) => {
-		const node: BinaryNode[] = []
-		const simpleFields: (keyof UpdateBussinesProfileProps)[] = ['address', 'email', 'description']
+        const updateBussinesProfile = async (args: UpdateBussinesProfileProps) => {
+                const node: BinaryNode[] = []
+                const simpleFields: (keyof UpdateBussinesProfileProps)[] = ['address', 'email', 'description']
 
-		node.push(
-			...simpleFields
-				.filter(key => args[key])
-				.map(key => ({
-					tag: key,
-					attrs: {},
-					content: args[key] as string
-				}))
-		)
+                node.push(
+                        ...simpleFields
+                                .filter(key => args[key])
+                                .map(key => ({
+                                        tag: key,
+                                        attrs: {},
+                                        content: args[key] as string
+                                }))
+                )
 
-		if (args.websites) {
-			node.push(
-				...args.websites.map(website => ({
-					tag: 'website',
-					attrs: {},
-					content: website
-				}))
-			)
-		}
+                if (args.websites) {
+                        node.push(
+                                ...args.websites.map(website => ({
+                                        tag: 'website',
+                                        attrs: {},
+                                        content: website
+                                }))
+                        )
+                }
 
-		if (args.hours) {
-			node.push({
-				tag: 'business_hours',
-				attrs: { timezone: args.hours.timezone },
-				content: args.hours.days.map(config => {
-					const base = {
-						tag: 'business_hours_config',
-						attrs: { day_of_week: config.day, mode: config.mode }
-					}
+                if (args.hours) {
+                        node.push({
+                                tag: 'business_hours',
+                                attrs: { timezone: args.hours.timezone },
+                                content: args.hours.days.map(config => {
+                                        const base = {
+                                                tag: 'business_hours_config',
+                                                attrs: { day_of_week: config.day, mode: config.mode }
+                                        }
 
-					if (config.mode === 'specific_hours') {
-						return {
-							...base,
-							attrs: {
-								...base.attrs,
-								open_time: config.openTimeInMinutes,
-								close_time: config.closeTimeInMinutes
-							}
-						}
-					}
+                                        if (config.mode === 'specific_hours') {
+                                                return {
+                                                        ...base,
+                                                        attrs: {
+                                                                ...base.attrs,
+                                                                open_time: config.openTimeInMinutes,
+                                                                close_time: config.closeTimeInMinutes
+                                                        }
+                                                }
+                                        }
 
-					return base
-				})
-			})
-		}
+                                        return base
+                                })
+                        })
+                }
 
-		const result = await query({
-			tag: 'iq',
-			attrs: {
-				to: S_WHATSAPP_NET,
-				type: 'set',
-				xmlns: 'w:biz'
-			},
-			content: [
-				{
-					tag: 'business_profile',
-					attrs: {
-						v: '3',
-						mutation_type: 'delta'
-					},
-					content: node
-				}
-			]
-		})
+                const result = await query({
+                        tag: 'iq',
+                        attrs: {
+                                to: S_WHATSAPP_NET,
+                                type: 'set',
+                                xmlns: 'w:biz'
+                        },
+                        content: [
+                                {
+                                        tag: 'business_profile',
+                                        attrs: {
+                                                v: '3',
+                                                mutation_type: 'delta'
+                                        },
+                                        content: node
+                                }
+                        ]
+                })
 
-		return result
-	}
+                return result
+        }
 
-	const updateCoverPhoto = async (photo: WAMediaUpload) => {
-		const { fileSha256, filePath } = await getRawMediaUploadData(photo, 'biz-cover-photo')
-		const fileSha256B64 = fileSha256.toString('base64')
+        const updateCoverPhoto = async (photo: WAMediaUpload) => {
+                const { fileSha256, filePath } = await getRawMediaUploadData(photo, 'biz-cover-photo')
+                const fileSha256B64 = fileSha256.toString('base64')
 
-		const { meta_hmac, fbid, ts } = await waUploadToServer(filePath, {
-			fileEncSha256B64: fileSha256B64,
-			mediaType: 'biz-cover-photo'
-		})
+                const { meta_hmac, fbid, ts } = await waUploadToServer(filePath, {
+                        fileEncSha256B64: fileSha256B64,
+                        mediaType: 'biz-cover-photo'
+                })
 
-		await query({
-			tag: 'iq',
-			attrs: {
-				to: S_WHATSAPP_NET,
-				type: 'set',
-				xmlns: 'w:biz'
-			},
-			content: [
-				{
-					tag: 'business_profile',
-					attrs: {
-						v: '3',
-						mutation_type: 'delta'
-					},
-					content: [
-						{
-							tag: 'cover_photo',
-							attrs: { id: String(fbid), op: 'update', token: meta_hmac!, ts: String(ts) }
-						}
-					]
-				}
-			]
-		})
+                await query({
+                        tag: 'iq',
+                        attrs: {
+                                to: S_WHATSAPP_NET,
+                                type: 'set',
+                                xmlns: 'w:biz'
+                        },
+                        content: [
+                                {
+                                        tag: 'business_profile',
+                                        attrs: {
+                                                v: '3',
+                                                mutation_type: 'delta'
+                                        },
+                                        content: [
+                                                {
+                                                        tag: 'cover_photo',
+                                                        attrs: { id: String(fbid), op: 'update', token: meta_hmac!, ts: String(ts) }
+                                                }
+                                        ]
+                                }
+                        ]
+                })
 
-		return fbid!
-	}
+                return fbid!
+        }
 
-	const removeCoverPhoto = async (id: string) => {
-		return await query({
-			tag: 'iq',
-			attrs: {
-				to: S_WHATSAPP_NET,
-				type: 'set',
-				xmlns: 'w:biz'
-			},
-			content: [
-				{
-					tag: 'business_profile',
-					attrs: {
-						v: '3',
-						mutation_type: 'delta'
-					},
-					content: [
-						{
-							tag: 'cover_photo',
-							attrs: { op: 'delete', id }
-						}
-					]
-				}
-			]
-		})
-	}
+        const removeCoverPhoto = async (id: string) => {
+                return await query({
+                        tag: 'iq',
+                        attrs: {
+                                to: S_WHATSAPP_NET,
+                                type: 'set',
+                                xmlns: 'w:biz'
+                        },
+                        content: [
+                                {
+                                        tag: 'business_profile',
+                                        attrs: {
+                                                v: '3',
+                                                mutation_type: 'delta'
+                                        },
+                                        content: [
+                                                {
+                                                        tag: 'cover_photo',
+                                                        attrs: { op: 'delete', id }
+                                                }
+                                        ]
+                                }
+                        ]
+                })
+        }
 
-	const getCatalog = async ({ jid, limit, cursor }: GetCatalogOptions) => {
-		jid = jid || authState.creds.me?.id
-		jid = jidNormalizedUser(jid)
+        const getCatalog = async ({ jid, limit, cursor }: GetCatalogOptions) => {
+                jid = jid || authState.creds.me?.id
+                jid = jidNormalizedUser(jid)
 
-		const queryParamNodes: BinaryNode[] = [
-			{
-				tag: 'limit',
-				attrs: {},
-				content: Buffer.from((limit || 10).toString())
-			},
-			{
-				tag: 'width',
-				attrs: {},
-				content: Buffer.from('100')
-			},
-			{
-				tag: 'height',
-				attrs: {},
-				content: Buffer.from('100')
-			}
-		]
+                const queryParamNodes: BinaryNode[] = [
+                        {
+                                tag: 'limit',
+                                attrs: {},
+                                content: Buffer.from((limit || 10).toString())
+                        },
+                        {
+                                tag: 'width',
+                                attrs: {},
+                                content: Buffer.from('100')
+                        },
+                        {
+                                tag: 'height',
+                                attrs: {},
+                                content: Buffer.from('100')
+                        }
+                ]
 
-		if (cursor) {
-			queryParamNodes.push({
-				tag: 'after',
-				attrs: {},
-				content: cursor
-			})
-		}
+                if (cursor) {
+                        queryParamNodes.push({
+                                tag: 'after',
+                                attrs: {},
+                                content: cursor
+                        })
+                }
 
-		const result = await query({
-			tag: 'iq',
-			attrs: {
-				to: S_WHATSAPP_NET,
-				type: 'get',
-				xmlns: 'w:biz:catalog'
-			},
-			content: [
-				{
-					tag: 'product_catalog',
-					attrs: {
-						jid,
-						allow_shop_source: 'true'
-					},
-					content: queryParamNodes
-				}
-			]
-		})
-		return parseCatalogNode(result)
-	}
+                const result = await query({
+                        tag: 'iq',
+                        attrs: {
+                                to: S_WHATSAPP_NET,
+                                type: 'get',
+                                xmlns: 'w:biz:catalog'
+                        },
+                        content: [
+                                {
+                                        tag: 'product_catalog',
+                                        attrs: {
+                                                jid,
+                                                allow_shop_source: 'true'
+                                        },
+                                        content: queryParamNodes
+                                }
+                        ]
+                })
+                return parseCatalogNode(result)
+        }
 
-	const getCollections = async (jid?: string, limit = 51) => {
-		jid = jid || authState.creds.me?.id
-		jid = jidNormalizedUser(jid)
-		const result = await query({
-			tag: 'iq',
-			attrs: {
-				to: S_WHATSAPP_NET,
-				type: 'get',
-				xmlns: 'w:biz:catalog',
-				smax_id: '35'
-			},
-			content: [
-				{
-					tag: 'collections',
-					attrs: {
-						biz_jid: jid
-					},
-					content: [
-						{
-							tag: 'collection_limit',
-							attrs: {},
-							content: Buffer.from(limit.toString())
-						},
-						{
-							tag: 'item_limit',
-							attrs: {},
-							content: Buffer.from(limit.toString())
-						},
-						{
-							tag: 'width',
-							attrs: {},
-							content: Buffer.from('100')
-						},
-						{
-							tag: 'height',
-							attrs: {},
-							content: Buffer.from('100')
-						}
-					]
-				}
-			]
-		})
+        const getCollections = async (jid?: string, limit = 51) => {
+                jid = jid || authState.creds.me?.id
+                jid = jidNormalizedUser(jid)
+                const result = await query({
+                        tag: 'iq',
+                        attrs: {
+                                to: S_WHATSAPP_NET,
+                                type: 'get',
+                                xmlns: 'w:biz:catalog',
+                                smax_id: '35'
+                        },
+                        content: [
+                                {
+                                        tag: 'collections',
+                                        attrs: {
+                                                biz_jid: jid
+                                        },
+                                        content: [
+                                                {
+                                                        tag: 'collection_limit',
+                                                        attrs: {},
+                                                        content: Buffer.from(limit.toString())
+                                                },
+                                                {
+                                                        tag: 'item_limit',
+                                                        attrs: {},
+                                                        content: Buffer.from(limit.toString())
+                                                },
+                                                {
+                                                        tag: 'width',
+                                                        attrs: {},
+                                                        content: Buffer.from('100')
+                                                },
+                                                {
+                                                        tag: 'height',
+                                                        attrs: {},
+                                                        content: Buffer.from('100')
+                                                }
+                                        ]
+                                }
+                        ]
+                })
 
-		return parseCollectionsNode(result)
-	}
+                return parseCollectionsNode(result)
+        }
 
-	const getOrderDetails = async (orderId: string, tokenBase64: string) => {
-		const result = await query({
-			tag: 'iq',
-			attrs: {
-				to: S_WHATSAPP_NET,
-				type: 'get',
-				xmlns: 'fb:thrift_iq',
-				smax_id: '5'
-			},
-			content: [
-				{
-					tag: 'order',
-					attrs: {
-						op: 'get',
-						id: orderId
-					},
-					content: [
-						{
-							tag: 'image_dimensions',
-							attrs: {},
-							content: [
-								{
-									tag: 'width',
-									attrs: {},
-									content: Buffer.from('100')
-								},
-								{
-									tag: 'height',
-									attrs: {},
-									content: Buffer.from('100')
-								}
-							]
-						},
-						{
-							tag: 'token',
-							attrs: {},
-							content: Buffer.from(tokenBase64)
-						}
-					]
-				}
-			]
-		})
+        const getOrderDetails = async (orderId: string, tokenBase64: string) => {
+                const result = await query({
+                        tag: 'iq',
+                        attrs: {
+                                to: S_WHATSAPP_NET,
+                                type: 'get',
+                                xmlns: 'fb:thrift_iq',
+                                smax_id: '5'
+                        },
+                        content: [
+                                {
+                                        tag: 'order',
+                                        attrs: {
+                                                op: 'get',
+                                                id: orderId
+                                        },
+                                        content: [
+                                                {
+                                                        tag: 'image_dimensions',
+                                                        attrs: {},
+                                                        content: [
+                                                                {
+                                                                        tag: 'width',
+                                                                        attrs: {},
+                                                                        content: Buffer.from('100')
+                                                                },
+                                                                {
+                                                                        tag: 'height',
+                                                                        attrs: {},
+                                                                        content: Buffer.from('100')
+                                                                }
+                                                        ]
+                                                },
+                                                {
+                                                        tag: 'token',
+                                                        attrs: {},
+                                                        content: Buffer.from(tokenBase64)
+                                                }
+                                        ]
+                                }
+                        ]
+                })
 
-		return parseOrderDetailsNode(result)
-	}
+                return parseOrderDetailsNode(result)
+        }
 
-	const productUpdate = async (productId: string, update: ProductUpdate) => {
-		update = await uploadingNecessaryImagesOfProduct(update, waUploadToServer)
-		const editNode = toProductNode(productId, update)
+        const productUpdate = async (productId: string, update: ProductUpdate) => {
+                update = await uploadingNecessaryImagesOfProduct(update, waUploadToServer)
+                const editNode = toProductNode(productId, update)
 
-		const result = await query({
-			tag: 'iq',
-			attrs: {
-				to: S_WHATSAPP_NET,
-				type: 'set',
-				xmlns: 'w:biz:catalog'
-			},
-			content: [
-				{
-					tag: 'product_catalog_edit',
-					attrs: { v: '1' },
-					content: [
-						editNode,
-						{
-							tag: 'width',
-							attrs: {},
-							content: '100'
-						},
-						{
-							tag: 'height',
-							attrs: {},
-							content: '100'
-						}
-					]
-				}
-			]
-		})
+                const result = await query({
+                        tag: 'iq',
+                        attrs: {
+                                to: S_WHATSAPP_NET,
+                                type: 'set',
+                                xmlns: 'w:biz:catalog'
+                        },
+                        content: [
+                                {
+                                        tag: 'product_catalog_edit',
+                                        attrs: { v: '1' },
+                                        content: [
+                                                editNode,
+                                                {
+                                                        tag: 'width',
+                                                        attrs: {},
+                                                        content: '100'
+                                                },
+                                                {
+                                                        tag: 'height',
+                                                        attrs: {},
+                                                        content: '100'
+                                                }
+                                        ]
+                                }
+                        ]
+                })
 
-		const productCatalogEditNode = getBinaryNodeChild(result, 'product_catalog_edit')
-		const productNode = getBinaryNodeChild(productCatalogEditNode, 'product')
+                const productCatalogEditNode = getBinaryNodeChild(result, 'product_catalog_edit')
+                const productNode = getBinaryNodeChild(productCatalogEditNode, 'product')
 
-		return parseProductNode(productNode!)
-	}
+                return parseProductNode(productNode!)
+        }
 
-	const productCreate = async (create: ProductCreate) => {
-		// ensure isHidden is defined
-		create.isHidden = !!create.isHidden
-		create = await uploadingNecessaryImagesOfProduct(create, waUploadToServer)
-		const createNode = toProductNode(undefined, create)
+        const productCreate = async (create: ProductCreate) => {
+                // ensure isHidden is defined
+                create.isHidden = !!create.isHidden
+                create = await uploadingNecessaryImagesOfProduct(create, waUploadToServer)
+                const createNode = toProductNode(undefined, create)
 
-		const result = await query({
-			tag: 'iq',
-			attrs: {
-				to: S_WHATSAPP_NET,
-				type: 'set',
-				xmlns: 'w:biz:catalog'
-			},
-			content: [
-				{
-					tag: 'product_catalog_add',
-					attrs: { v: '1' },
-					content: [
-						createNode,
-						{
-							tag: 'width',
-							attrs: {},
-							content: '100'
-						},
-						{
-							tag: 'height',
-							attrs: {},
-							content: '100'
-						}
-					]
-				}
-			]
-		})
+                const result = await query({
+                        tag: 'iq',
+                        attrs: {
+                                to: S_WHATSAPP_NET,
+                                type: 'set',
+                                xmlns: 'w:biz:catalog'
+                        },
+                        content: [
+                                {
+                                        tag: 'product_catalog_add',
+                                        attrs: { v: '1' },
+                                        content: [
+                                                createNode,
+                                                {
+                                                        tag: 'width',
+                                                        attrs: {},
+                                                        content: '100'
+                                                },
+                                                {
+                                                        tag: 'height',
+                                                        attrs: {},
+                                                        content: '100'
+                                                }
+                                        ]
+                                }
+                        ]
+                })
 
-		const productCatalogAddNode = getBinaryNodeChild(result, 'product_catalog_add')
-		const productNode = getBinaryNodeChild(productCatalogAddNode, 'product')
+                const productCatalogAddNode = getBinaryNodeChild(result, 'product_catalog_add')
+                const productNode = getBinaryNodeChild(productCatalogAddNode, 'product')
 
-		return parseProductNode(productNode!)
-	}
+                return parseProductNode(productNode!)
+        }
 
-	const productDelete = async (productIds: string[]) => {
-		const result = await query({
-			tag: 'iq',
-			attrs: {
-				to: S_WHATSAPP_NET,
-				type: 'set',
-				xmlns: 'w:biz:catalog'
-			},
-			content: [
-				{
-					tag: 'product_catalog_delete',
-					attrs: { v: '1' },
-					content: productIds.map(id => ({
-						tag: 'product',
-						attrs: {},
-						content: [
-							{
-								tag: 'id',
-								attrs: {},
-								content: Buffer.from(id)
-							}
-						]
-					}))
-				}
-			]
-		})
+        const productDelete = async (productIds: string[]) => {
+                const result = await query({
+                        tag: 'iq',
+                        attrs: {
+                                to: S_WHATSAPP_NET,
+                                type: 'set',
+                                xmlns: 'w:biz:catalog'
+                        },
+                        content: [
+                                {
+                                        tag: 'product_catalog_delete',
+                                        attrs: { v: '1' },
+                                        content: productIds.map(id => ({
+                                                tag: 'product',
+                                                attrs: {},
+                                                content: [
+                                                        {
+                                                                tag: 'id',
+                                                                attrs: {},
+                                                                content: Buffer.from(id)
+                                                        }
+                                                ]
+                                        }))
+                                }
+                        ]
+                })
 
-		const productCatalogDelNode = getBinaryNodeChild(result, 'product_catalog_delete')
-		return {
-			deleted: +(productCatalogDelNode?.attrs.deleted_count || 0)
-		}
-	}
+                const productCatalogDelNode = getBinaryNodeChild(result, 'product_catalog_delete')
+                return {
+                        deleted: +(productCatalogDelNode?.attrs.deleted_count || 0)
+                }
+        }
 
-	return {
-		...sock,
-		logger: config.logger,
-		getOrderDetails,
-		getCatalog,
-		getCollections,
-		productCreate,
-		productDelete,
-		productUpdate,
-		updateBussinesProfile,
-		updateCoverPhoto,
-		removeCoverPhoto
-	}
+        return {
+                ...sock,
+                logger: config.logger,
+                getOrderDetails,
+                getCatalog,
+                getCollections,
+                productCreate,
+                productDelete,
+                productUpdate,
+                updateBussinesProfile,
+                updateCoverPhoto,
+                removeCoverPhoto
+        }
 }
