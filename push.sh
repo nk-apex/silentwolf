@@ -6,8 +6,8 @@ if [ -z "$GITHUB_TOKEN" ]; then
   exit 1
 fi
 
-REMOTE="https://7silent-wolf:${GITHUB_TOKEN}@github.com/7silent-wolf/silentwolf-baileys.git"
+REMOTE="https://nk-apex:${GITHUB_TOKEN}@github.com/nk-apex/silentwolf.git"
 
-echo "Pushing to github.com/7silent-wolf/silentwolf-baileys ..."
+echo "Pushing to github.com/nk-apex/silentwolf ..."
 git push --force --set-upstream "$REMOTE" main
 echo "Done."
