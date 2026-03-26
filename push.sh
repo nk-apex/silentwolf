@@ -9,5 +9,5 @@ fi
 REMOTE="https://nk-apex:${GITHUB_TOKEN}@github.com/nk-apex/silentwolf.git"
 
 echo "Pushing to github.com/nk-apex/silentwolf ..."
-git push --set-upstream "$REMOTE" main
+git push --force --set-upstream "$REMOTE" main
 echo "Done."
